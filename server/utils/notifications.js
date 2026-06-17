@@ -364,8 +364,137 @@ ${plainText}
   return true;
 }
 
+async function sendBookingConfirmedEmail(email, name, booking, passcodeEntry) {
+  const passcode = passcodeEntry ? passcodeEntry.passcode : '55555';
+  const validity = passcodeEntry ? passcodeEntry.valid_until : 'Indefinite';
+
+  const subject = `Booking Confirmed: Booking #${booking.id} - Northridge Nets`;
+  const plainText = `Hi ${name},\n\nYour booking #${booking.id} has been confirmed!\n\nBooking Details:\n- Date: ${booking.date}\n- Time: ${booking.start_time} - ${booking.end_time}\n- Price: $${booking.price}\n\nFacility Access Code Details:\n- Access Passcode: ${passcode}\n- Valid Until: ${validity}\n\nPlease use this passcode to enter the facility for your session.\n\nThank you,\nNorthridge Nets Team`;
+
+  const htmlContent = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+      <h2 style="color: #2e7d32; text-align: center;">Booking Confirmed!</h2>
+      <p>Hi ${name},</p>
+      <p>Your booking has been confirmed successfully. Here are your booking details:</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd; width: 35%;">Booking ID</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">#${booking.id}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Date</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.date}</td>
+        </tr>
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Time Slot</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.start_time} - ${booking.end_time}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Session Type</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.session_type === 'nets_only' ? 'Nets Only' : 'Nets with Bowling Machine'}</td>
+        </tr>
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Price Paid</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">$${booking.price}</td>
+        </tr>
+      </table>
+
+      <div style="background-color: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 5px; padding: 15px; margin: 25px 0; text-align: center;">
+        <h3 style="color: #2e7d32; margin-top: 0;">Facility Access Passcode</h3>
+        <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px; margin: 10px 0; color: #1b5e20;">${passcode}</p>
+        <p style="font-size: 12px; color: #555; margin-bottom: 0;">Valid Until: <strong>${validity}</strong></p>
+      </div>
+
+      <p>Use the passcode above on the keypad at the entrance to access the nets during your booked time.</p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+      <p style="font-size: 12px; color: #666; text-align: center;">If you have any questions or need to cancel, please log in to your account.</p>
+    </div>
+  `;
+
+  // 1. Mailtrap REST API
+  if (process.env.MAILTRAP_API_KEY) {
+    const fromEmail = process.env.MAILTRAP_FROM_EMAIL || 'mailtrap@demomailtrap.com';
+    const fromName = process.env.MAILTRAP_FROM_NAME || 'Northridge Nets';
+    const payload = {
+      from: { email: fromEmail, name: fromName },
+      to: [{ email: email }],
+      subject: subject,
+      html: htmlContent
+    };
+
+    const sandboxId = process.env.MAILTRAP_SANDBOX_ID;
+    const mailtrapUrl = sandboxId 
+      ? `https://sandbox.api.mailtrap.io/api/send/${sandboxId}`
+      : 'https://send.api.mailtrap.io/api/send';
+
+    try {
+      const response = await fetch(mailtrapUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MAILTRAP_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const responseText = await response.text();
+      let data = {};
+      try { data = JSON.parse(responseText); } catch (e) { data = { error: responseText }; }
+
+      if (response.ok && data.success !== false) {
+        console.log(`[Mailtrap API] ✅ Booking confirmation email sent successfully to ${email}`);
+        return true;
+      } else {
+        console.error(`[Mailtrap API] ❌ Booking confirmation email send failed to ${email}:`, data);
+      }
+    } catch (err) {
+      console.error(`[Mailtrap API] ❌ Error calling Mailtrap endpoint for confirmation:`, err.message);
+    }
+  }
+
+  // 2. SMTP Transporter
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"Northridge Nets" <noreply@northridgenets.com>`,
+        to: email,
+        subject: subject,
+        text: plainText,
+        html: htmlContent
+      });
+      console.log(`[SMTP Email] ✅ Booking confirmation email sent successfully to ${email}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Email] ❌ Error sending booking confirmation email:`, err);
+    }
+  }
+
+  // 3. Fallback to console logs
+  console.log(`
+============================================================
+📧 SIMULATED EMAIL OUTBOX (Booking Confirmed)
+To: ${name} (${email})
+Subject: ${subject}
+Body:
+${plainText}
+============================================================
+`);
+  return true;
+}
+
 module.exports = {
   mockSendSMS,
   mockSendVerificationEmail,
-  sendNewBookingNotification
+  sendNewBookingNotification,
+  sendBookingConfirmedEmail
 };

@@ -32,6 +32,8 @@ const BASE_URL = 'http://localhost:4001/api';
 test.describe('Northridge Nets API Integration Tests', () => {
   let userToken = '';
   let adminToken = '';
+  let viewerToken = '';
+  let editorToken = '';
   let userId = null;
   let bookingId = null;
 
@@ -325,7 +327,7 @@ test.describe('Northridge Nets API Integration Tests', () => {
     const viewerUser = db.prepare('SELECT id FROM users WHERE email = ?').get('viewer@test.com');
     const jwt = require('jsonwebtoken');
     const { JWT_SECRET } = require('../middleware/auth');
-    const viewerToken = jwt.sign({ id: viewerUser.id, email: 'viewer@test.com', role: 'viewer' }, JWT_SECRET);
+    viewerToken = jwt.sign({ id: viewerUser.id, email: 'viewer@test.com', role: 'viewer' }, JWT_SECRET);
 
     // Call confirm endpoint as Viewer (should fail with 403)
     const viewerConfirmRes = await fetch(`${BASE_URL}/admin/bookings/${bookingId}/confirm`, {
@@ -340,7 +342,7 @@ test.describe('Northridge Nets API Integration Tests', () => {
       VALUES ('Test Editor', 'editor@test.com', 'dummy_hash', 'editor', 1)
     `).run();
     const editorUser = db.prepare('SELECT id FROM users WHERE email = ?').get('editor@test.com');
-    const editorToken = jwt.sign({ id: editorUser.id, email: 'editor@test.com', role: 'editor' }, JWT_SECRET);
+    editorToken = jwt.sign({ id: editorUser.id, email: 'editor@test.com', role: 'editor' }, JWT_SECRET);
 
     // Call user edit endpoint to make another user Org Admin (should fail with 403 for Editor)
     const editRoleRes = await fetch(`${BASE_URL}/admin/users/${userId}`, {
@@ -385,5 +387,46 @@ test.describe('Northridge Nets API Integration Tests', () => {
       headers: { 'Authorization': `Bearer ${adminToken}` }
     });
     assert.strictEqual(deleteTxAdminRes.status, 200);
+  });
+
+  test('11. Facility Passcode Management', async () => {
+    // 1. Get default passcode entry (seeded 55555)
+    const getRes = await fetch(`${BASE_URL}/admin/passcode`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    assert.strictEqual(getRes.status, 200);
+    const getData = await getRes.json();
+    assert.strictEqual(getData.passcodeEntry.passcode, '55555');
+
+    // 2. Viewer cannot edit passcode
+    const postViewerRes = await fetch(`${BASE_URL}/admin/passcode`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${viewerToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        passcode: '99999',
+        valid_until: '2026-12-31 23:59'
+      })
+    });
+    assert.strictEqual(postViewerRes.status, 403);
+
+    // 3. Editor/Admin can edit passcode
+    const postAdminRes = await fetch(`${BASE_URL}/admin/passcode`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        passcode: '12345',
+        valid_until: '2027-06-30 18:00'
+      })
+    });
+    assert.strictEqual(postAdminRes.status, 200);
+    const postData = await postAdminRes.json();
+    assert.strictEqual(postData.passcodeEntry.passcode, '12345');
+    assert.strictEqual(postData.passcodeEntry.valid_until, '2027-06-30 18:00');
   });
 });

@@ -43,3 +43,10 @@ CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date);
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_booking ON transactions(booking_id);
+
+CREATE TABLE IF NOT EXISTS facility_passcodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  passcode TEXT NOT NULL,
+  valid_until TEXT NOT NULL,  -- YYYY-MM-DD HH:MM format
+  created_at DATETIME DEFAULT (datetime('now'))
+);

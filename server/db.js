@@ -27,11 +27,12 @@ try {
   const hasIsVerified = userCols.some(c => c.name === 'is_verified');
   const hasDispatchStatus = bookingCols.some(c => c.name === 'dispatch_status');
   
-  // Check if transactions table exists
+  // Check if transactions & facility_passcodes tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
   const hasTransactions = tables.some(t => t.name === 'transactions');
+  const hasFacilityPasscodes = tables.some(t => t.name === 'facility_passcodes');
 
-  if (userCols.length > 0 && (!hasIsVerified || !hasDispatchStatus || !hasTransactions)) {
+  if (userCols.length > 0 && (!hasIsVerified || !hasDispatchStatus || !hasTransactions || !hasFacilityPasscodes)) {
     needsRecreation = true;
   }
 } catch (e) {
@@ -40,6 +41,7 @@ try {
 
 if (needsRecreation) {
   console.log('🔄 Outdated database schema detected. Recreating database...');
+  db.exec('DROP TABLE IF EXISTS facility_passcodes;');
   db.exec('DROP TABLE IF EXISTS transactions;');
   db.exec('DROP TABLE IF EXISTS bookings;');
   db.exec('DROP TABLE IF EXISTS users;');
@@ -48,6 +50,20 @@ if (needsRecreation) {
 // Initialize schema
 const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
 db.exec(schema);
+
+// Initialize facility passcode if empty
+try {
+  const passcodeExists = db.prepare("SELECT id FROM facility_passcodes").get();
+  if (!passcodeExists) {
+    db.prepare(`
+      INSERT INTO facility_passcodes (passcode, valid_until)
+      VALUES (?, ?)
+    `).run('55555', '2099-12-31 23:59');
+    console.log('✅ Facility passcode initialized with 55555.');
+  }
+} catch (err) {
+  console.error('Error initializing facility passcode:', err);
+}
 
 // Auto-seed admin user if recreating or empty
 const adminExists = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@northridgenets.com');

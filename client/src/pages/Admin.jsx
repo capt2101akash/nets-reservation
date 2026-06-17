@@ -12,6 +12,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CancelIcon from '@mui/icons-material/Cancel';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { motion } from 'framer-motion';
 import api from '../api/axios';
 import dayjs from 'dayjs';
@@ -78,6 +79,13 @@ export default function Admin() {
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
   const [deletingTx, setDeletingTx] = useState(false);
 
+  // Passcode state
+  const [passcodeEntry, setPasscodeEntry] = useState(null);
+  const [passcode, setPasscode] = useState('');
+  const [validUntil, setValidUntil] = useState('');
+  const [passcodeLoading, setPasscodeLoading] = useState(false);
+  const [savingPasscode, setSavingPasscode] = useState(false);
+
   const fetchBookingsAndStats = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -110,6 +118,23 @@ export default function Admin() {
       .finally(() => setTransactionsLoading(false));
   }, []);
 
+  const fetchPasscode = useCallback(() => {
+    setPasscodeLoading(true);
+    api.get('/admin/passcode')
+      .then(res => {
+        if (res.data.passcodeEntry) {
+          setPasscodeEntry(res.data.passcodeEntry);
+          setPasscode(res.data.passcodeEntry.passcode);
+          const dbVal = res.data.passcodeEntry.valid_until;
+          if (dbVal) {
+            setValidUntil(dbVal.replace(' ', 'T'));
+          }
+        }
+      })
+      .catch(console.error)
+      .finally(() => setPasscodeLoading(false));
+  }, []);
+
   useEffect(() => {
     if (currentTab === 0) {
       fetchBookingsAndStats();
@@ -117,8 +142,10 @@ export default function Admin() {
       fetchUsers();
     } else if (currentTab === 2) {
       fetchTransactions();
+    } else if (currentTab === 3) {
+      fetchPasscode();
     }
-  }, [currentTab, fetchBookingsAndStats, fetchUsers, fetchTransactions]);
+  }, [currentTab, fetchBookingsAndStats, fetchUsers, fetchTransactions, fetchPasscode]);
 
   const handleAdminCancel = async () => {
     setCancelling(true);
@@ -131,6 +158,28 @@ export default function Admin() {
     } finally {
       setCancelling(false);
       setCancelTarget(null);
+    }
+  };
+
+  const handleSavePasscode = async (e) => {
+    e.preventDefault();
+    if (!passcode.trim() || !validUntil) {
+      setSnack({ open: true, message: 'Passcode and validity date/time are required.', severity: 'error' });
+      return;
+    }
+    setSavingPasscode(true);
+    try {
+      const formattedValidUntil = validUntil.replace('T', ' ');
+      const res = await api.post('/admin/passcode', {
+        passcode: passcode.trim(),
+        valid_until: formattedValidUntil
+      });
+      setPasscodeEntry(res.data.passcodeEntry);
+      setSnack({ open: true, message: 'Facility passcode updated successfully.', severity: 'success' });
+    } catch (err) {
+      setSnack({ open: true, message: err.response?.data?.error || 'Failed to update passcode.', severity: 'error' });
+    } finally {
+      setSavingPasscode(false);
     }
   };
 
@@ -399,6 +448,7 @@ export default function Admin() {
             <Tab label="Bookings" icon={<CalendarMonthIcon fontSize="small" />} iconPosition="start" />
             <Tab label="Users" icon={<PeopleIcon fontSize="small" />} iconPosition="start" />
             <Tab label="Balance Sheet" icon={<AttachMoneyIcon fontSize="small" />} iconPosition="start" />
+            <Tab label="Facility Passcode" icon={<VpnKeyIcon fontSize="small" />} iconPosition="start" />
           </Tabs>
         </Stack>
 
@@ -571,6 +621,105 @@ export default function Admin() {
               </Box>
             </Card>
           </>
+        )}
+
+        {/* Tab 3: Facility Passcode Settings */}
+        {currentTab === 3 && (
+          <Box sx={{ maxWidth: 600, mx: 'auto', mt: 2 }}>
+            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
+              <Card>
+                <CardContent sx={{ p: 4 }}>
+                  <Stack spacing={3}>
+                    <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                      <Box sx={{
+                        width: 48, height: 48, borderRadius: 2, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', bgcolor: 'secondary.dark', color: 'secondary.light'
+                      }}>
+                        <VpnKeyIcon />
+                      </Box>
+                      <Box>
+                        <Typography variant="h5" fontWeight={700}>Facility Passcode</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Configure the global gate access passcode.
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    <Divider />
+
+                    {passcodeLoading ? (
+                      <Stack alignItems="center" py={4}>
+                        <CircularProgress color="secondary" />
+                      </Stack>
+                    ) : (
+                      <>
+                        <Box sx={{
+                          bgcolor: 'background.default',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 2,
+                          p: 3,
+                          textAlign: 'center'
+                        }}>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                            Current Active Passcode
+                          </Typography>
+                          <Typography variant="h3" fontWeight={800} color="secondary.light" sx={{ my: 1.5, letterSpacing: 2 }}>
+                            {passcodeEntry ? passcodeEntry.passcode : 'None'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Valid Until: <strong>{passcodeEntry ? dayjs(passcodeEntry.valid_until).format('MMM D, YYYY h:mm A') : 'N/A'}</strong>
+                          </Typography>
+                        </Box>
+
+                        <form onSubmit={handleSavePasscode}>
+                          <Stack spacing={2.5}>
+                            <TextField
+                              fullWidth
+                              label="Gate Passcode"
+                              variant="outlined"
+                              value={passcode}
+                              onChange={(e) => setPasscode(e.target.value)}
+                              disabled={isViewer || savingPasscode}
+                              placeholder="e.g. 55555"
+                              helperText="The passcode clients will receive in their booking confirmation emails."
+                              required
+                            />
+
+                            <TextField
+                              fullWidth
+                              label="Validity Expiration"
+                              type="datetime-local"
+                              variant="outlined"
+                              value={validUntil}
+                              onChange={(e) => setValidUntil(e.target.value)}
+                              disabled={isViewer || savingPasscode}
+                              InputLabelProps={{ shrink: true }}
+                              helperText="When this passcode expires (clients will get a warning if expired)."
+                              required
+                            />
+
+                            {!isViewer && (
+                              <Button
+                                type="submit"
+                                variant="contained"
+                                color="secondary"
+                                size="large"
+                                disabled={savingPasscode}
+                                sx={{ py: 1.5 }}
+                              >
+                                {savingPasscode ? <CircularProgress size={24} color="inherit" /> : 'Update Passcode'}
+                              </Button>
+                            )}
+                          </Stack>
+                        </form>
+                      </>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </Box>
         )}
       </Container>
 

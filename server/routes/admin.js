@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { verifyToken, requireRole } = require('../middleware/auth');
-const { mockSendSMS } = require('../utils/notifications');
+const { mockSendSMS, sendBookingConfirmedEmail } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -66,7 +66,7 @@ router.post('/bookings/:id/confirm', (req, res) => {
     return res.status(403).json({ error: 'Forbidden: Insufficient permissions to confirm bookings' });
   }
 
-  const booking = db.prepare('SELECT b.*, u.phone, u.name FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.id = ?').get(req.params.id);
+  const booking = db.prepare('SELECT b.*, u.phone, u.name, u.email FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.id = ?').get(req.params.id);
   if (!booking) return res.status(404).json({ error: 'Booking not found' });
   if (booking.status !== 'on_hold') return res.status(400).json({ error: 'Only bookings on hold can be confirmed' });
 
@@ -81,6 +81,14 @@ router.post('/bookings/:id/confirm', (req, res) => {
       VALUES (?, ?, ?, 'payment', 'online', ?)
     `).run(booking.id, booking.user_id, booking.price, `CONFIRM-${booking.id}`);
   }
+
+  // Fetch the latest passcode entry for facility access
+  const passcodeEntry = db.prepare("SELECT * FROM facility_passcodes ORDER BY id DESC LIMIT 1").get();
+
+  // Send email confirmation with passcode to the user
+  sendBookingConfirmedEmail(booking.email, booking.name, booking, passcodeEntry).catch(err => {
+    console.error('Error sending booking confirmation email:', err);
+  });
   
   // Simulated SMS/WhatsApp notification for booking confirmation
   mockSendSMS(booking.phone, `Hi ${booking.name}, your booking #${booking.id} for Northridge Nets has been confirmed! We will send your access code 30 minutes before your session.`);
@@ -310,6 +318,42 @@ router.get('/stats', (req, res) => {
     recentBookings,
     utilizationData
   });
+});
+
+// GET /api/admin/passcode - Retrieve the latest facility access passcode
+router.get('/passcode', (req, res) => {
+  try {
+    const entry = db.prepare("SELECT * FROM facility_passcodes ORDER BY id DESC LIMIT 1").get();
+    res.json({ passcodeEntry: entry || null });
+  } catch (err) {
+    console.error('Error fetching facility passcode:', err);
+    res.status(500).json({ error: 'Failed to fetch facility passcode' });
+  }
+});
+
+// POST /api/admin/passcode - Create/Update the facility access passcode (Admins & Editors)
+router.post('/passcode', (req, res) => {
+  if (!hasWriteAccess(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: Insufficient permissions to edit facility passcode' });
+  }
+
+  const { passcode, valid_until } = req.body;
+  if (!passcode || !valid_until) {
+    return res.status(400).json({ error: 'Passcode and validity (valid_until) are required' });
+  }
+
+  try {
+    db.prepare(`
+      INSERT INTO facility_passcodes (passcode, valid_until)
+      VALUES (?, ?)
+    `).run(passcode, valid_until);
+
+    const latest = db.prepare("SELECT * FROM facility_passcodes ORDER BY id DESC LIMIT 1").get();
+    res.json({ message: 'Facility passcode updated successfully', passcodeEntry: latest });
+  } catch (err) {
+    console.error('Error updating facility passcode:', err);
+    res.status(500).json({ error: 'Failed to update facility passcode' });
+  }
 });
 
 module.exports = router;
