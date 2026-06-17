@@ -47,16 +47,48 @@ export default function Landing() {
       {/* Hero (1st Section) */}
       <Box sx={{
         minHeight: '92vh', display: 'flex', alignItems: 'center',
-        background: 'radial-gradient(ellipse at 30% 40%, rgba(46,125,50,0.25) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(245,127,23,0.1) 0%, transparent 50%), #0d1117',
         position: 'relative', overflow: 'hidden',
+        bgcolor: '#0d1117'
       }}>
+        {/* Background Video */}
+        <Box
+          component="video"
+          autoPlay
+          muted
+          loop
+          playsInline
+          src="/media/video-5.mp4"
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            zIndex: 0,
+            opacity: 0.45
+          }}
+        />
+
+        {/* Backdrop Overlay Mask for Typography Legibility */}
+        <Box sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'linear-gradient(to bottom, rgba(13,17,23,0.5) 0%, rgba(13,17,23,0.95) 100%), radial-gradient(circle at 30% 30%, rgba(46,125,50,0.2) 0%, transparent 60%)',
+          zIndex: 1,
+          pointerEvents: 'none'
+        }} />
+
         {/* Decorative circles */}
         <Box sx={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400,
-          borderRadius: '50%', border: '1px solid rgba(46,125,50,0.15)', pointerEvents: 'none' }} />
+          borderRadius: '50%', border: '1px solid rgba(46,125,50,0.1)', pointerEvents: 'none', zIndex: 2 }} />
         <Box sx={{ position: 'absolute', top: -60, right: -60, width: 260, height: 260,
-          borderRadius: '50%', border: '1px solid rgba(46,125,50,0.1)', pointerEvents: 'none' }} />
+          borderRadius: '50%', border: '1px solid rgba(46,125,50,0.05)', pointerEvents: 'none', zIndex: 2 }} />
 
-        <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Container maxWidth="lg" sx={{ py: 8, position: 'relative', zIndex: 3 }}>
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={7}>
               <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
@@ -183,6 +215,86 @@ export default function Landing() {
                           {plan.cta}
                         </Button>
                       </Box>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Our Facility Video Gallery */}
+      <Box sx={{ py: 12, bgcolor: '#0b0f15' }}>
+        <Container maxWidth="lg">
+          <Box textAlign="center" mb={8}>
+            <Typography variant="overline" color="primary" letterSpacing={2} fontWeight={600}>Inside The Facility</Typography>
+            <Typography variant="h3" fontWeight={800} mt={1.5}>Our Training Environment</Typography>
+            <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 600, mx: 'auto' }}>
+              Explore our state-of-the-art batting lanes, professional bowling machines, and fully illuminated nets. Hover to preview each lane!
+            </Typography>
+          </Box>
+
+          <Grid container spacing={4} justifyContent="center">
+            {[
+              { src: '/media/video-1.mp4', title: 'Main Net Lane', desc: 'Full length 22-yard turf pitch with premium safety netting.' },
+              { src: '/media/video-2.mp4', title: 'Bowling Machine Lane', desc: 'Sleek bowling machine alleys designed for repetitive batting drills.' },
+              { src: '/media/video-3.mp4', title: 'Batting Practice Area', desc: 'Equipped with multiple speed options and automated ball feeder.' },
+              { src: '/media/video-4.mp4', title: 'Evening Training', desc: 'LED illuminated lanes for late evening sessions.' },
+              { src: '/media/video-6.mp4', title: 'Coaching Arena', desc: 'Perfect for professional coaching sessions and team practice.' }
+            ].map((video, index) => (
+              <Grid item xs={12} sm={6} md={4} key={index}>
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  style={{ height: '100%', display: 'flex' }}
+                >
+                  <Card sx={{
+                    height: '100%',
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    bgcolor: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(8px)',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      transform: 'translateY(-6px)',
+                      boxShadow: '0 12px 30px rgba(0, 0, 0, 0.4)',
+                      transition: 'all 0.3s ease'
+                    }
+                  }}>
+                    <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%', overflow: 'hidden' }}>
+                      <Box
+                        component="video"
+                        src={video.src}
+                        muted
+                        loop
+                        playsInline
+                        controls
+                        onMouseEnter={(e) => { e.currentTarget.play().catch(() => {}); }}
+                        onMouseLeave={(e) => { e.currentTarget.pause(); }}
+                        sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    </Box>
+                    <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                      <Typography variant="h6" fontWeight={700} mb={1}>{video.title}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, mt: 'auto' }}>
+                        {video.desc}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </motion.div>

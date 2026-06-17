@@ -259,34 +259,34 @@ export default function Book() {
                           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                           <Paper sx={{ p: 3, border: '1px solid', borderColor: 'primary.dark', borderRadius: 3, bgcolor: 'rgba(46,125,50,0.06)' }}>
                             <Stack spacing={2}>
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Date</Typography>
-                                <Typography fontWeight={600}>{selectedDate?.format('dddd, MMMM D, YYYY')}</Typography>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography fontWeight={700} color="text.primary">Date</Typography>
+                                <Typography fontWeight={600} color="text.secondary">{selectedDate?.format('dddd, MMMM D, YYYY')}</Typography>
                               </Stack>
                               <Divider />
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Session Type</Typography>
-                                <Typography fontWeight={600}>{sessionInfo?.label}</Typography>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography fontWeight={700} color="text.primary">Session Type</Typography>
+                                <Typography fontWeight={600} color="text.secondary">{sessionInfo?.label}</Typography>
                               </Stack>
                               <Divider />
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Time</Typography>
-                                <Typography fontWeight={600}>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography fontWeight={700} color="text.primary">Time</Typography>
+                                <Typography fontWeight={600} color="text.secondary">
                                   {formatTime(selection?.start_time)} – {formatTime(selection?.end_time)}
                                 </Typography>
                               </Stack>
                               <Divider />
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography color="text.secondary">Duration</Typography>
-                                <Typography fontWeight={600}>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography fontWeight={700} color="text.primary">Duration</Typography>
+                                <Typography fontWeight={600} color="text.secondary">
                                   {selection?.durationHrs === Math.floor(selection?.durationHrs)
                                     ? selection?.durationHrs
                                     : selection?.durationHrs.toFixed(1)} hr{selection?.durationHrs !== 1 ? 's' : ''}
                                 </Typography>
                               </Stack>
                               <Divider />
-                              <Stack direction="row" justifyContent="space-between">
-                                <Typography variant="h6" fontWeight={700}>Total</Typography>
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="h6" fontWeight={800} color="text.primary">Total</Typography>
                                 <Typography variant="h5" fontWeight={800} color="secondary.main">
                                   ${selection?.price.toFixed(2)}
                                 </Typography>
