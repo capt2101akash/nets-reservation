@@ -1,0 +1,14 @@
+{
+  "name": "northridge-nets",
+  "version": "1.0.0",
+  "description": "Northridge Nets Cricket Reservation System",
+  "scripts": {
+    "server": "cd server && node index.js",
+    "client": "cd client && npx vite",
+    "dev": "npx concurrently \"npm run server\" \"npm run client\"",
+    "seed": "cd server && node seed.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

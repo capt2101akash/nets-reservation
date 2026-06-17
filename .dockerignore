@@ -1,0 +1,14 @@
+node_modules
+client/node_modules
+server/node_modules
+client/dist
+server/db/northridge_nets.db
+server/db/northridge_nets.db-shm
+server/db/northridge_nets.db-wal
+.git
+.gitignore
+.dockerignore
+Dockerfile
+npm-debug.log
+*~
+.DS_Store
