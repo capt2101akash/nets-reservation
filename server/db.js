@@ -18,33 +18,47 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Self-healing schema check
-let needsRecreation = false;
+// Self-healing schema check & safe incremental migration
 try {
   const userCols = db.prepare("PRAGMA table_info(users)").all();
-  const bookingCols = db.prepare("PRAGMA table_info(bookings)").all();
   
-  const hasIsVerified = userCols.some(c => c.name === 'is_verified');
-  const hasDispatchStatus = bookingCols.some(c => c.name === 'dispatch_status');
-  
-  // Check if transactions & facility_passcodes tables exist
-  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-  const hasTransactions = tables.some(t => t.name === 'transactions');
-  const hasFacilityPasscodes = tables.some(t => t.name === 'facility_passcodes');
+  if (userCols.length > 0) {
+    // Users table exists, check and add missing columns incrementally
+    const hasIsVerified = userCols.some(c => c.name === 'is_verified');
+    const hasVerificationToken = userCols.some(c => c.name === 'verification_token');
+    
+    if (!hasIsVerified) {
+      console.log('🔧 Migrating database: Adding user.is_verified column...');
+      db.exec("ALTER TABLE users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0 CHECK(is_verified IN (0, 1));");
+    }
+    if (!hasVerificationToken) {
+      console.log('🔧 Migrating database: Adding user.verification_token column...');
+      db.exec("ALTER TABLE users ADD COLUMN verification_token TEXT;");
+    }
+  }
 
-  if (userCols.length > 0 && (!hasIsVerified || !hasDispatchStatus || !hasTransactions || !hasFacilityPasscodes)) {
-    needsRecreation = true;
+  const bookingCols = db.prepare("PRAGMA table_info(bookings)").all();
+  if (bookingCols.length > 0) {
+    // Bookings table exists, check and add missing columns incrementally
+    const hasDispatchStatus = bookingCols.some(c => c.name === 'dispatch_status');
+    const hasCodeSent = bookingCols.some(c => c.name === 'code_sent');
+    const hasAccessCode = bookingCols.some(c => c.name === 'access_code');
+    
+    if (!hasDispatchStatus) {
+      console.log('🔧 Migrating database: Adding bookings.dispatch_status column...');
+      db.exec("ALTER TABLE bookings ADD COLUMN dispatch_status TEXT CHECK(dispatch_status IN ('success', 'failed'));");
+    }
+    if (!hasCodeSent) {
+      console.log('🔧 Migrating database: Adding bookings.code_sent column...');
+      db.exec("ALTER TABLE bookings ADD COLUMN code_sent INTEGER NOT NULL DEFAULT 0 CHECK(code_sent IN (0, 1));");
+    }
+    if (!hasAccessCode) {
+      console.log('🔧 Migrating database: Adding bookings.access_code column...');
+      db.exec("ALTER TABLE bookings ADD COLUMN access_code TEXT;");
+    }
   }
 } catch (e) {
-  // If tables do not exist, they will be created by the schema execution below
-}
-
-if (needsRecreation) {
-  console.log('🔄 Outdated database schema detected. Recreating database...');
-  db.exec('DROP TABLE IF EXISTS facility_passcodes;');
-  db.exec('DROP TABLE IF EXISTS transactions;');
-  db.exec('DROP TABLE IF EXISTS bookings;');
-  db.exec('DROP TABLE IF EXISTS users;');
+  console.error('Migration check error:', e);
 }
 
 // Initialize schema
