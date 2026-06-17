@@ -205,5 +205,5 @@ Verification emails are dispatched using two methods:
 
 Default Admin credentials pre-seeded on startup:
 * **Email:** `admin@northridgenets.com`
-* **Password:** `Admin@1234`
+* **Password:** Configured via the `ADMIN_PASSWORD` environment variable. If not set, a secure random password is generated and logged to the server console on startup.
 *(To promote any registered user to Org Admin, update their row in the database, or register them with the target email `akash210197@gmail.com` which is auto-promoted during signup).*

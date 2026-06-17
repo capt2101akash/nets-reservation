@@ -12,6 +12,7 @@ if (fs.existsSync(testDbPath + '-shm')) fs.unlinkSync(testDbPath + '-shm');
 process.env.NODE_ENV = 'test';
 process.env.DB_PATH = testDbPath;
 process.env.PORT = '4001';
+process.env.ADMIN_PASSWORD = 'TestAdminPassword123!';
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -174,7 +175,7 @@ test.describe('Northridge Nets API Integration Tests', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'admin@northridgenets.com',
-        password: 'Admin@1234'
+        password: process.env.ADMIN_PASSWORD
       })
     });
     

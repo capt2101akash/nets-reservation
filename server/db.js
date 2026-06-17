@@ -52,12 +52,14 @@ db.exec(schema);
 // Auto-seed admin user if recreating or empty
 const adminExists = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@northridgenets.com');
 if (!adminExists) {
-  const hash = bcrypt.hashSync('Admin@1234', 12);
+  const crypto = require('crypto');
+  const adminPassword = process.env.ADMIN_PASSWORD || (crypto.randomBytes(8).toString('hex') + 'A1!');
+  const hash = bcrypt.hashSync(adminPassword, 12);
   db.prepare(`
     INSERT INTO users (name, email, password_hash, phone, role, is_verified)
     VALUES (?, ?, ?, ?, ?, 1)
   `).run('Admin', 'admin@northridgenets.com', hash, '555-0000', 'org_admin');
-  console.log('✅ Admin user seeded automatically.');
+  console.log(`✅ Admin user seeded automatically. Password: ${process.env.ADMIN_PASSWORD ? '[REDACTED]' : adminPassword}`);
 }
 
 // Auto-promote specific user email to admin on startup
