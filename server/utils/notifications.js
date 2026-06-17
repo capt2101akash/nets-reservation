@@ -225,7 +225,147 @@ ${verificationLink}
   return true;
 }
 
+async function sendNewBookingNotification(booking) {
+  const db = require('../db');
+  
+  // Find all org admins, admins, and editors
+  const staff = db.prepare(`
+    SELECT name, email, role FROM users 
+    WHERE role IN ('org_admin', 'admin', 'editor')
+  `).all();
+  
+  if (staff.length === 0) return;
+
+  const subject = `New Booking Alert: Booking #${booking.id}`;
+  const plainText = `A new booking has been created in the system.\n\nBooking ID: #${booking.id}\nCustomer: ${booking.user_name || 'N/A'} (${booking.user_email || 'N/A'})\nDate: ${booking.date}\nTime: ${booking.start_time} - ${booking.end_time}\nSession Type: ${booking.session_type}\nPrice: $${booking.price}\nStatus: ${booking.status}`;
+  
+  const htmlContent = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+      <h2 style="color: #2e7d32; text-align: center;">New Booking Created</h2>
+      <p>Hello Staff,</p>
+      <p>A new booking has been created. Here are the details:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd; width: 35%;">Booking ID</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">#${booking.id}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Customer Name</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.user_name || 'N/A'}</td>
+        </tr>
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Customer Email</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.user_email || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Date</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.date}</td>
+        </tr>
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Time Slot</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.start_time} - ${booking.end_time}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Session Type</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${booking.session_type === 'nets_only' ? 'Nets Only' : 'Nets with Bowling Machine'}</td>
+        </tr>
+        <tr style="background-color: #f9f9f9;">
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Price</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">$${booking.price}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; font-weight: bold; border: 1px solid #ddd;">Status</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #f57c00;">${booking.status.toUpperCase()}</td>
+        </tr>
+      </table>
+      <p style="text-align: center; margin-top: 30px;">
+        <a href="https://northridge-nets.fly.dev/admin" style="background-color: #2e7d32; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Open Admin Console</a>
+      </p>
+    </div>`;
+
+  // 1. Mailtrap REST API
+  if (process.env.MAILTRAP_API_KEY) {
+    const fromEmail = process.env.MAILTRAP_FROM_EMAIL || 'mailtrap@demomailtrap.com';
+    const fromName = process.env.MAILTRAP_FROM_NAME || 'Northridge Nets Alert';
+    const payload = {
+      from: { email: fromEmail, name: fromName },
+      to: staff.map(u => ({ email: u.email })),
+      subject: subject,
+      html: htmlContent
+    };
+
+    const sandboxId = process.env.MAILTRAP_SANDBOX_ID;
+    const mailtrapUrl = sandboxId 
+      ? `https://sandbox.api.mailtrap.io/api/send/${sandboxId}`
+      : 'https://send.api.mailtrap.io/api/send';
+
+    try {
+      const response = await fetch(mailtrapUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.MAILTRAP_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const responseText = await response.text();
+      let data = {};
+      try { data = JSON.parse(responseText); } catch (e) { data = { error: responseText }; }
+
+      if (response.ok && data.success !== false) {
+        console.log(`[Mailtrap API] ✅ New booking email sent successfully to staff (${sandboxId ? 'Sandbox Inbox' : 'Live Stream'})`);
+        return true;
+      } else {
+        console.error(`[Mailtrap API] ❌ New booking email send failed:`, data);
+      }
+    } catch (err) {
+      console.error(`[Mailtrap API] ❌ Error calling Mailtrap endpoint for new booking:`, err.message);
+    }
+  }
+
+  // 2. SMTP Transporter
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      const toEmails = staff.map(u => u.email).join(', ');
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"Northridge Nets Alert" <noreply@northridgenets.com>`,
+        to: toEmails,
+        subject: subject,
+        text: plainText,
+        html: htmlContent
+      });
+      console.log(`[SMTP Email] ✅ New booking email sent successfully to ${toEmails}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Email] ❌ Error sending new booking email:`, err);
+    }
+  }
+
+  // 3. Fallback to console logs
+  const staffList = staff.map(u => `${u.name} (${u.email})`).join(', ');
+  console.log(`
+============================================================
+📧 SIMULATED EMAIL OUTBOX (Staff Alert)
+To: ${staffList}
+Subject: ${subject}
+Body:
+${plainText}
+============================================================
+`);
+  return true;
+}
+
 module.exports = {
   mockSendSMS,
-  mockSendVerificationEmail
+  mockSendVerificationEmail,
+  sendNewBookingNotification
 };

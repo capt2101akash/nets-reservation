@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { verifyToken } = require('../middleware/auth');
+const { sendNewBookingNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -111,6 +112,11 @@ router.post('/', verifyToken, (req, res) => {
     FROM bookings b JOIN users u ON b.user_id = u.id
     WHERE b.id = ?
   `).get(result.lastInsertRowid);
+
+  // Trigger background email alert to staff (admins & editors)
+  sendNewBookingNotification(booking).catch(err => {
+    console.error('Error dispatching new booking notification:', err);
+  });
 
   res.status(201).json({ booking });
 });
